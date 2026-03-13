@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>ConvoqueMe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <!-- Firebase SDKs -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, addDoc, serverTimestamp, query, orderBy, updateDoc, deleteDoc }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // ════════════════════════════════════════════════════════════
+    // 🔥  CONFIGURAÇÃO FIREBASE — substitua pelos seus valores
+    // ════════════════════════════════════════════════════════════
+    const firebaseConfig = {
+      apiKey:            "SUA_API_KEY",
+      authDomain:        "SEU_PROJECT.firebaseapp.com",
+      projectId:         "SEU_PROJECT_ID",
+      storageBucket:     "SEU_PROJECT.appspot.com",
+      messagingSenderId: "SEU_SENDER_ID",
+      appId:             "SEU_APP_ID"
+    };
+    // ════════════════════════════════════════════════════════════
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+
+    window._fb = { auth, db,
+      signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
+      collection, doc, setDoc, getDoc, onSnapshot, addDoc, serverTimestamp, query, orderBy, updateDoc, deleteDoc
+    };
+    window.dispatchEvent(new Event("firebase-ready"));
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #080810; --bg2: #0f0f1a; --bg3: #161625; --bg4: #1e1e30;
+      --border:  rgba(255,255,255,.07); --border2: rgba(255,255,255,.12);
+      --gold:    #f0c040; --orange: #ff6b35; --blue: #4d8cff;
+      --green:   #3ddc84; --red: #ff4d6d;
+      --text:    #e8e8f4; --muted: #5a5a78; --muted2: #8888a8;
+      --r: 14px; --fh: 'Syne', sans-serif; --fb: 'DM Sans', sans-serif;
+    }
+    html, body { height:100%; background:var(--bg); color:var(--text); font-family:var(--fb); overflow-x:hidden; -webkit-font-smoothing:antialiased; }
+
+    /* SCREENS */
+    .screen { display:none; flex-direction:column; min-height:100dvh; animation:fadeUp .3s ease; }
+    .screen.active { display:flex; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+    /* SPLASH */
+    #screen-splash { align-items:center; justify-content:center; gap:18px; background:radial-gradient(ellipse 70% 55% at 50% 40%, #14102a 0%, var(--bg) 70%); }
+    .splash-logo { width:76px; height:76px; border-radius:22px; background:linear-gradient(135deg,var(--gold),var(--orange)); display:flex; align-items:center; justify-content:center; font-size:34px; box-shadow:0 0 60px rgba(240,192,64,.28); animation:glow 2.2s ease-in-out infinite; }
+    @keyframes glow { 0%,100%{box-shadow:0 0 40px rgba(240,192,64,.2)} 50%{box-shadow:0 0 80px rgba(240,192,64,.48)} }
+    .splash-title { font-family:var(--fh); font-size:2rem; font-weight:800; letter-spacing:-1px; background:linear-gradient(90deg,var(--gold),var(--orange)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .splash-sub { color:var(--muted2); font-size:.85rem; }
+
+    /* FORMS */
+    .card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--r); padding:24px; }
+    .fg { display:flex; flex-direction:column; gap:7px; margin-bottom:14px; }
+    .fg label { font-size:.7rem; color:var(--muted2); text-transform:uppercase; letter-spacing:.09em; }
+    .fg input, .fg select { background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:12px 14px; color:var(--text); font-family:var(--fb); font-size:.92rem; outline:none; transition:border-color .18s; -webkit-appearance:none; }
+    .fg input:focus, .fg select:focus { border-color:var(--gold); }
+    select option { background:#1e1e30; }
+
+    /* BUTTONS */
+    .btn { border:none; border-radius:11px; cursor:pointer; font-family:var(--fb); font-weight:500; font-size:.92rem; padding:13px 20px; transition:all .18s; width:100%; }
+    .btn-primary { background:linear-gradient(135deg,var(--gold),var(--orange)); color:#000; font-weight:700; }
+    .btn-primary:hover { filter:brightness(1.1); transform:translateY(-1px); }
+    .btn-secondary { background:var(--bg3); color:var(--text); border:1px solid var(--border); }
+
+    /* LOGIN */
+    #screen-login { align-items:center; justify-content:center; padding:20px; background:radial-gradient(ellipse 55% 45% at 50% 0%, #14102a 0%, var(--bg) 65%); }
+    #screen-login .inner { width:100%; max-width:390px; display:flex; flex-direction:column; gap:18px; }
+    .logo-row { display:flex; align-items:center; gap:11px; justify-content:center; margin-bottom:4px; }
+    .logo-sm { width:40px; height:40px; border-radius:13px; background:linear-gradient(135deg,var(--gold),var(--orange)); display:flex; align-items:center; justify-content:center; font-size:19px; }
+    .logo-row h1 { font-family:var(--fh); font-size:1.55rem; font-weight:800; background:linear-gradient(90deg,var(--gold),var(--orange)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .tab-row { display:flex; background:var(--bg3); border-radius:11px; padding:3px; gap:3px; }
+    .tab-btn { flex:1; padding:9px; border:none; border-radius:9px; cursor:pointer; font-family:var(--fb); font-size:.82rem; font-weight:500; background:transparent; color:var(--muted2); transition:all .18s; }
+    .tab-btn.active { background:var(--bg2); color:var(--text); }
+    .form-panel { display:none; flex-direction:column; }
+    .form-panel.active { display:flex; }
+    .err { color:var(--red); font-size:.8rem; text-align:center; margin-top:3px; min-height:18px; }
+
+    /* TOPBAR */
+    .topbar { display:flex; align-items:center; justify-content:space-between; padding:16px 18px 12px; position:sticky; top:0; z-index:20; background:linear-gradient(var(--bg) 75%, transparent); backdrop-filter:blur(10px); }
+    .topbar-left { display:flex; flex-direction:column; gap:1px; }
+    .topbar-title { font-family:var(--fh); font-size:1.25rem; font-weight:700; }
+    .topbar-sub { font-size:.72rem; color:var(--muted2); }
+    .topbar-right { display:flex; align-items:center; gap:9px; }
+    .avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,var(--gold),var(--orange)); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.85rem; color:#000; cursor:pointer; flex-shrink:0; }
+
+    /* ROLE BADGES */
+    .rb { display:inline-flex; align-items:center; gap:4px; font-size:.65rem; font-weight:600; padding:3px 9px; border-radius:20px; }
+    .rb-master { background:rgba(255,107,53,.15); color:var(--orange); border:1px solid rgba(255,107,53,.3); }
+    .rb-admin  { background:rgba(77,140,255,.15);  color:var(--blue);   border:1px solid rgba(77,140,255,.3); }
+    .rb-user   { background:rgba(255,255,255,.07); color:var(--muted2); border:1px solid var(--border); }
+
+    /* SECTION */
+    .sec { font-size:.67rem; text-transform:uppercase; letter-spacing:.13em; color:var(--muted); padding:0 18px; margin:20px 0 10px; }
+
+    /* ── MASTER ── */
+    #screen-master { padding-bottom:88px; }
+    .stats-bar { display:flex; gap:10px; padding:0 16px; margin-bottom:4px; }
+    .stat-pill { flex:1; background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:3px; }
+    .stat-val { font-family:var(--fh); font-size:1.4rem; font-weight:700; }
+    .sv-g{color:var(--green)} .sv-o{color:var(--orange)} .sv-b{color:var(--blue)}
+    .stat-lbl { font-size:.68rem; color:var(--muted2); }
+    .people-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 14px; }
+    .p-card { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:18px 14px; display:flex; flex-direction:column; align-items:center; gap:9px; cursor:pointer; transition:all .2s; position:relative; overflow:hidden; }
+    .p-card::after { content:''; position:absolute; inset:0; opacity:0; background:radial-gradient(circle at 50% 0%, rgba(240,192,64,.1) 0%, transparent 65%); transition:opacity .25s; }
+    .p-card:hover { border-color:rgba(240,192,64,.35); transform:translateY(-2px); }
+    .p-card:hover::after { opacity:1; }
+    .p-card:active { transform:scale(.97); }
+    .p-av { width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg,#222235,#2e2e46); display:flex; align-items:center; justify-content:center; font-size:1.25rem; font-weight:700; border:2px solid var(--border); position:relative; }
+    .p-dot { position:absolute; bottom:1px; right:1px; width:12px; height:12px; border-radius:50%; border:2px solid var(--bg2); background:var(--muted); }
+    .p-dot.online{background:var(--green)} .p-dot.busy{background:var(--orange)}
+    .p-name { font-family:var(--fh); font-size:.9rem; font-weight:600; text-align:center; line-height:1.2; }
+    .p-role { font-size:.68rem; color:var(--muted2); }
+    .p-tag { font-size:.62rem; font-weight:600; padding:2px 8px; border-radius:20px; }
+    .pt-admin { background:rgba(77,140,255,.15); color:var(--blue); }
+    .pt-user  { background:rgba(255,255,255,.06); color:var(--muted2); }
+    .call-btn { background:linear-gradient(135deg,var(--gold),var(--orange)); border:none; border-radius:9px; color:#000; font-weight:700; font-size:.76rem; padding:7px 14px; cursor:pointer; width:100%; transition:filter .18s; }
+    .call-btn:hover { filter:brightness(1.1); }
+    .fab { position:fixed; bottom:22px; right:20px; width:54px; height:54px; border-radius:50%; background:linear-gradient(135deg,var(--gold),var(--orange)); border:none; cursor:pointer; font-size:22px; color:#000; box-shadow:0 6px 28px rgba(240,192,64,.38); display:flex; align-items:center; justify-content:center; transition:all .2s; z-index:90; }
+    .fab:hover { transform:scale(1.08); box-shadow:0 10px 36px rgba(240,192,64,.55); }
+
+    /* ── ADMIN ── */
+    #screen-admin { padding-bottom:88px; }
+    .info-banner { margin:0 14px 4px; padding:12px 16px; border-radius:12px; background:rgba(77,140,255,.08); border:1px solid rgba(77,140,255,.2); font-size:.82rem; color:var(--blue); line-height:1.5; }
+    .u-list { display:flex; flex-direction:column; gap:8px; padding:0 14px; }
+    .u-item { background:var(--bg2); border:1px solid var(--border); border-radius:13px; padding:13px 14px; display:flex; align-items:center; gap:11px; }
+    .u-av { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#222235,#2e2e46); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.88rem; flex-shrink:0; }
+    .u-info { flex:1; min-width:0; }
+    .u-name { font-size:.92rem; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .u-meta { font-size:.72rem; color:var(--muted2); margin-top:1px; }
+    .u-right { display:flex; align-items:center; gap:7px; }
+    .del-btn { background:none; border:none; color:var(--red); cursor:pointer; font-size:1rem; padding:4px; opacity:.7; }
+    .del-btn:hover { opacity:1; }
+
+    /* ── USER (FUNCIONÁRIO) ── */
+    #screen-employee { align-items:center; justify-content:center; padding:24px; gap:22px; background:radial-gradient(ellipse 55% 38% at 50% 52%, #0b1a10 0%, var(--bg) 70%); }
+    .pulse-ring { width:156px; height:156px; border-radius:50%; display:flex; align-items:center; justify-content:center; position:relative; }
+    .pulse-ring::before { content:''; position:absolute; inset:-9px; border-radius:50%; border:2px solid rgba(61,220,132,.18); animation:rp 2.6s ease-in-out infinite; }
+    .pulse-ring::after  { content:''; position:absolute; inset:-22px; border-radius:50%; border:1px solid rgba(61,220,132,.08); animation:rp 2.6s ease-in-out infinite .45s; }
+    @keyframes rp { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.06);opacity:1} }
+    .ring-inner { width:136px; height:136px; border-radius:50%; border:2px solid rgba(61,220,132,.3); background:radial-gradient(circle, rgba(61,220,132,.12) 0%, transparent 70%); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; }
+    .ring-icon { font-size:2.8rem; } .ring-lbl { font-size:.7rem; color:var(--green); text-transform:uppercase; letter-spacing:.1em; }
+    .emp-info { text-align:center; display:flex; flex-direction:column; gap:5px; }
+    .emp-name { font-family:var(--fh); font-size:1.55rem; font-weight:700; }
+    .emp-role { color:var(--muted2); font-size:.88rem; }
+    .s-chips { display:flex; gap:8px; justify-content:center; margin-top:3px; }
+    .s-chip { padding:6px 13px; border-radius:20px; font-size:.75rem; cursor:pointer; border:1px solid var(--border); background:var(--bg3); color:var(--muted2); transition:all .2s; }
+    .s-chip.on   { background:rgba(61,220,132,.13); color:var(--green);  border-color:rgba(61,220,132,.35); }
+    .s-chip.busy { background:rgba(255,107,53,.13);  color:var(--orange); border-color:rgba(255,107,53,.35); }
+    .await-card { width:100%; max-width:320px; text-align:center; }
+    .await-card .al { font-size:.68rem; color:var(--muted2); text-transform:uppercase; letter-spacing:.1em; margin-bottom:6px; }
+    .await-card .av { font-size:.88rem; line-height:1.5; }
+
+    /* ── INCOMING CALL ── */
+    #overlay-call { display:none; position:fixed; inset:0; z-index:998; background:rgba(0,0,0,.88); backdrop-filter:blur(14px); flex-direction:column; align-items:center; justify-content:center; gap:26px; }
+    #overlay-call.show { display:flex; animation:fadeIn .28s ease; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .call-bell { width:116px; height:116px; border-radius:50%; background:linear-gradient(135deg,var(--gold),var(--orange)); display:flex; align-items:center; justify-content:center; font-size:3rem; animation:bp .75s ease-in-out infinite; }
+    @keyframes bp { 0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(240,192,64,.5)} 50%{transform:scale(1.06);box-shadow:0 0 0 22px rgba(240,192,64,0)} }
+    .call-headline { font-family:var(--fh); font-size:1.9rem; font-weight:800; text-align:center; }
+    .call-card { background:var(--bg3); border:1px solid var(--border2); border-radius:16px; padding:16px 28px; text-align:center; min-width:220px; }
+    .cc-lbl { font-size:.67rem; color:var(--muted2); text-transform:uppercase; letter-spacing:.1em; }
+    .cc-name { font-family:var(--fh); font-size:1.25rem; font-weight:700; margin-top:5px; }
+    .cc-msg  { font-size:.83rem; color:var(--gold); margin-top:5px; }
+    .call-btns { display:flex; gap:18px; }
+    .call-btns button { width:62px; height:62px; border-radius:50%; border:none; cursor:pointer; font-size:1.4rem; transition:transform .18s; }
+    .call-btns button:active { transform:scale(.9); }
+    .c-accept{background:var(--green)} .c-decline{background:var(--red)}
+
+    /* ── MODAL ── */
+    .backdrop { display:none; position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.72); backdrop-filter:blur(7px); align-items:flex-end; justify-content:center; }
+    .backdrop.show { display:flex; }
+    .modal { background:var(--bg2); border:1px solid var(--border2); border-radius:22px 22px 0 0; padding:26px 22px 38px; width:100%; max-width:480px; animation:su .28s ease; }
+    @keyframes su { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    .m-handle { width:34px; height:4px; background:var(--border2); border-radius:2px; margin:0 auto 18px; }
+    .m-title { font-family:var(--fh); font-size:1.15rem; font-weight:700; margin-bottom:18px; }
+
+    /* ── HISTORY ── */
+    .hist-list { display:flex; flex-direction:column; gap:7px; padding:0 14px; }
+    .hist-item { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:12px 14px; display:flex; align-items:center; gap:11px; }
+    .hist-ico { font-size:1.2rem; }
+    .hist-info { flex:1; }
+    .hist-text { font-size:.88rem; font-weight:500; }
+    .hist-meta { font-size:.7rem; color:var(--muted2); margin-top:2px; }
+    .hist-st { font-size:.66rem; padding:3px 9px; border-radius:20px; }
+    .st-ok{background:rgba(61,220,132,.1);color:var(--green)} .st-no{background:rgba(255,77,109,.1);color:var(--red)} .st-wait{background:rgba(240,192,64,.1);color:var(--gold)}
+
+    /* ── TOAST ── */
+    #toast { position:fixed; bottom:85px; left:50%; transform:translateX(-50%) translateY(14px); background:var(--bg4); border:1px solid var(--border2); border-radius:11px; padding:11px 18px; font-size:.85rem; opacity:0; transition:all .28s; z-index:999; white-space:nowrap; pointer-events:none; }
+    #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+    /* ── MISC ── */
+    .empty { text-align:center; padding:40px 20px; color:var(--muted2); }
+    .empty .ei { font-size:2.6rem; margin-bottom:10px; }
+    .empty p { font-size:.88rem; }
+  </style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="screen-splash" class="screen active">
+  <div class="splash-logo">🔔</div>
+  <div class="splash-title">ConvoqueMe</div>
+  <div class="splash-sub">Conectando…</div>
+</div>
+
+<!-- LOGIN -->
+<div id="screen-login" class="screen">
+  <div class="inner">
+    <div class="logo-row">
+      <div class="logo-sm">🔔</div>
+      <h1>ConvoqueMe</h1>
+    </div>
+    <div class="tab-row">
+      <button class="tab-btn active" onclick="switchTab('login')">Entrar</button>
+      <button class="tab-btn"        onclick="switchTab('register')">Cadastrar</button>
+    </div>
+
+    <!-- ENTRAR -->
+    <div id="panel-login" class="form-panel active card">
+      <div class="fg"><label>E-mail</label><input type="email" id="l-email" placeholder="seu@email.com" /></div>
+      <div class="fg"><label>Senha</label><input type="password" id="l-pass" placeholder="••••••••" /></div>
+      <div id="l-err" class="err"></div>
+      <div style="height:6px"></div>
+      <button class="btn btn-primary" onclick="doLogin()">Entrar</button>
+    </div>
+
+    <!-- CADASTRAR -->
+    <div id="panel-register" class="form-panel card">
+      <div class="fg"><label>Nome completo</label><input type="text" id="r-name" placeholder="João Silva" /></div>
+      <div class="fg"><label>Cargo / Setor</label><input type="text" id="r-role" placeholder="Gerente de TI" /></div>
+      <div class="fg"><label>E-mail</label><input type="email" id="r-email" placeholder="seu@email.com" /></div>
+      <div class="fg"><label>Senha</label><input type="password" id="r-pass" placeholder="mín. 6 caracteres" /></div>
+      <div class="fg">
+        <label>Tipo de conta</label>
+        <select id="r-type" onchange="onTypeChange()">
+          <option value="user">👤 Funcionário (User)</option>
+          <option value="admin">🛡️ Admin (Eu)</option>
+          <option value="master">👑 Master (Dono)</option>
+        </select>
+      </div>
+      <div class="fg" id="key-group" style="display:none">
+        <label id="key-label">Chave de acesso</label>
+        <input type="password" id="r-key" placeholder="Chave secreta" />
+      </div>
+      <div id="r-err" class="err"></div>
+      <div style="height:6px"></div>
+      <button class="btn btn-primary" onclick="doRegister()">Criar conta</button>
+    </div>
+  </div>
+</div>
+
+<!-- MASTER DASHBOARD -->
+<div id="screen-master" class="screen">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-title">ConvoqueMe</div>
+      <div class="topbar-sub" id="m-sub">–</div>
+    </div>
+    <div class="topbar-right">
+      <span class="rb rb-master">👑 Master</span>
+      <div class="avatar" id="m-av" onclick="doLogout()" title="Sair">–</div>
+    </div>
+  </div>
+
+  <div class="sec">Visão geral</div>
+  <div class="stats-bar">
+    <div class="stat-pill"><span class="stat-val sv-g" id="s-online">0</span><span class="stat-lbl">Online</span></div>
+    <div class="stat-pill"><span class="stat-val sv-o" id="s-busy">0</span><span class="stat-lbl">Ocupados</span></div>
+    <div class="stat-pill"><span class="stat-val sv-b" id="s-total">0</span><span class="stat-lbl">Total</span></div>
+  </div>
+
+  <!-- Admins (seção condicional) -->
+  <div class="sec" id="sec-admins" style="display:none">Admins</div>
+  <div class="people-grid" id="grid-admins" style="display:none"></div>
+
+  <!-- Users -->
+  <div class="sec">Funcionários</div>
+  <div class="people-grid" id="grid-users">
+    <div class="empty" style="grid-column:span 2"><div class="ei">👥</div><p>Nenhum funcionário ainda.</p></div>
+  </div>
+
+  <div class="sec" style="margin-top:24px">Histórico de convocações</div>
+  <div class="hist-list" id="m-hist"><div class="empty"><p>Nenhuma convocação ainda.</p></div></div>
+
+  <!-- FAB: convocar todos -->
+  <button class="fab" onclick="openModal('all')" title="Convocar todos">📣</button>
+</div>
+
+<!-- ADMIN DASHBOARD -->
+<div id="screen-admin" class="screen">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-title">ConvoqueMe</div>
+      <div class="topbar-sub" id="a-sub">–</div>
+    </div>
+    <div class="topbar-right">
+      <span class="rb rb-admin">🛡️ Admin</span>
+      <div class="avatar" id="a-av" onclick="doLogout()" title="Sair">–</div>
+    </div>
+  </div>
+
+  <div style="height:4px"></div>
+  <div class="info-banner">
+    ℹ️ Você é <strong>Admin</strong> — pode gerenciar usuários e ver o histórico.<br>
+    Apenas o <strong>Master (Dono)</strong> pode convocar funcionários.
+  </div>
+
+  <div class="sec">Visão geral</div>
+  <div class="stats-bar">
+    <div class="stat-pill"><span class="stat-val sv-g" id="as-on">0</span><span class="stat-lbl">Online</span></div>
+    <div class="stat-pill"><span class="stat-val sv-o" id="as-busy">0</span><span class="stat-lbl">Ocupados</span></div>
+    <div class="stat-pill"><span class="stat-val sv-b" id="as-total">0</span><span class="stat-lbl">Total</span></div>
+  </div>
+
+  <div class="sec">Todos os usuários</div>
+  <div class="u-list" id="a-users"><div class="empty"><p>Carregando…</p></div></div>
+
+  <div class="sec" style="margin-top:24px">Histórico de convocações</div>
+  <div class="hist-list" id="a-hist"><div class="empty"><p>Nenhuma convocação ainda.</p></div></div>
+</div>
+
+<!-- USER (FUNCIONÁRIO) DASHBOARD -->
+<div id="screen-employee" class="screen">
+  <div class="topbar" style="position:absolute;top:0;left:0;right:0;background:transparent;backdrop-filter:none">
+    <div class="topbar-left">
+      <div class="topbar-title" id="e-name">–</div>
+      <div class="topbar-sub"   id="e-role">–</div>
+    </div>
+    <div class="topbar-right">
+      <span class="rb rb-user">👤 User</span>
+      <div class="avatar" id="e-av" onclick="doLogout()" title="Sair">–</div>
+    </div>
+  </div>
+
+  <div style="height:72px"></div>
+
+  <div class="pulse-ring">
+    <div class="ring-inner">
+      <div class="ring-icon" id="ring-icon">🟢</div>
+      <div class="ring-lbl"  id="ring-lbl">Online</div>
+    </div>
+  </div>
+
+  <div class="emp-info">
+    <div class="emp-name" id="e-dname">–</div>
+    <div class="emp-role" id="e-drole">–</div>
+    <div class="s-chips">
+      <div class="s-chip on"  id="chip-on"   onclick="setStatus('online')">✅ Disponível</div>
+      <div class="s-chip"     id="chip-busy" onclick="setStatus('busy')">🔴 Ocupado</div>
+    </div>
+  </div>
+
+  <div class="card await-card">
+    <div class="al">Aguardando convocação</div>
+    <div class="av">O dono irá alertar você quando necessário. Mantenha o app aberto.</div>
+  </div>
+
+  <div class="hist-list" id="e-hist" style="width:100%;max-width:400px;padding:0 4px">
+    <div class="sec" style="padding:0;margin-bottom:8px">Meu histórico</div>
+  </div>
+</div>
+
+<!-- OVERLAY: INCOMING CALL -->
+<div id="overlay-call">
+  <div class="call-bell">🔔</div>
+  <div class="call-headline">Você foi convocado!</div>
+  <div class="call-card">
+    <div class="cc-lbl">Convocado por</div>
+    <div class="cc-name" id="oc-from">–</div>
+    <div class="cc-msg"  id="oc-msg">–</div>
+  </div>
+  <div class="call-btns">
+    <button class="c-accept"  onclick="acceptCall()">✅</button>
+    <button class="c-decline" onclick="declineCall()">❌</button>
+  </div>
+</div>
+
+<!-- MODAL: CONVOCAR (apenas Master) -->
+<div id="modal-call" class="backdrop" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="m-handle"></div>
+    <div class="m-title" id="modal-title">Convocar</div>
+    <div class="fg">
+      <label>Mensagem</label>
+      <select id="call-msg" onchange="onMsgChange()">
+        <option value="Comparecer à sala de reunião">📍 Sala de reunião</option>
+        <option value="Urgente — compareça imediatamente">🚨 Urgente</option>
+        <option value="Reunião em 10 minutos">⏰ Reunião em 10 min</option>
+        <option value="Assinar documento na recepção">📝 Assinar documento</option>
+        <option value="Contato via telefone">📞 Contato por telefone</option>
+        <option value="custom">✏️ Mensagem personalizada…</option>
+      </select>
+    </div>
+    <div class="fg" id="custom-grp" style="display:none">
+      <label>Mensagem personalizada</label>
+      <input type="text" id="custom-txt" placeholder="Escreva aqui…" maxlength="120" />
+    </div>
+    <div style="height:6px"></div>
+    <button class="btn btn-primary" onclick="sendCall()">🔔 Convocar agora</button>
+    <div style="height:8px"></div>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+//  CHAVES DE ACESSO — edite antes de publicar
+//  MASTER_KEY → para criar conta Master (dono, só uma pessoa)
+//  ADMIN_KEY  → para criar conta Admin (você)
+//  Users (funcionários) se cadastram sem chave
+// ════════════════════════════════════════════════════════════════
+const MASTER_KEY = "master2024";
+const ADMIN_KEY  = "admin2024";
+// ════════════════════════════════════════════════════════════════
+
+let CU=null, CP=null, allUsers=[], callTarget=null, callUnsub=null;
+
+const $=id=>document.getElementById(id);
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $(id).classList.add('active'); window.scrollTo(0,0); }
+function toast(msg,ms=2800){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),ms); }
+function ini(n){ return (n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
+function ago(ts){ if(!ts) return ''; const d=ts.toDate?ts.toDate():new Date(ts), s=Math.floor((Date.now()-d)/1000); if(s<60) return 'agora'; if(s<3600) return `${Math.floor(s/60)}min`; if(s<86400) return `${Math.floor(s/3600)}h`; return d.toLocaleDateString('pt-BR'); }
+function isRecent(ts){ const d=ts?.toDate?ts.toDate():new Date(ts||0); return Date.now()-d<30000; }
+
+// ── LOGIN TABS ──────────────────────────────────────────────────
+function switchTab(t){
+  ['login','register'].forEach(p=>{ $(`panel-${p}`).classList.toggle('active',p===t); document.querySelectorAll('.tab-btn')[p==='login'?0:1].classList.toggle('active',p===t); });
+}
+function onTypeChange(){
+  const v=$('r-type').value, show=(v==='master'||v==='admin');
+  $('key-group').style.display=show?'flex':'none';
+  $('key-label').textContent=v==='master'?'Chave Master':'Chave Admin';
+}
+function onMsgChange(){ $('custom-grp').style.display=$('call-msg').value==='custom'?'flex':'none'; }
+
+// ── AUTH ────────────────────────────────────────────────────────
+async function doLogin(){
+  $('l-err').textContent='';
+  try { await window._fb.signInWithEmailAndPassword(window._fb.auth,$('l-email').value.trim(),$('l-pass').value); }
+  catch(e){ $('l-err').textContent=e.code==='auth/invalid-credential'?'E-mail ou senha incorretos.':e.message; }
+}
+async function doRegister(){
+  const {auth,db,createUserWithEmailAndPassword,doc,setDoc}=window._fb;
+  const name=$('r-name').value.trim(), role=$('r-role').value.trim(), email=$('r-email').value.trim(), pass=$('r-pass').value, type=$('r-type').value, key=$('r-key').value;
+  $('r-err').textContent='';
+  if(!name||!role||!email||!pass){$('r-err').textContent='Preencha todos os campos.';return;}
+  if(type==='master'&&key!==MASTER_KEY){$('r-err').textContent='Chave Master inválida.';return;}
+  if(type==='admin' &&key!==ADMIN_KEY) {$('r-err').textContent='Chave Admin inválida.';return;}
+  try {
+    const c=await createUserWithEmailAndPassword(auth,email,pass);
+    await setDoc(doc(db,'users',c.user.uid),{name,role,email,type,status:'online',createdAt:new Date().toISOString()});
+  } catch(e){ $('r-err').textContent=e.code==='auth/email-already-in-use'?'E-mail já cadastrado.':e.message; }
+}
+async function doLogout(){ if(callUnsub)callUnsub(); await window._fb.signOut(window._fb.auth); }
+
+// ── AUTH STATE ──────────────────────────────────────────────────
+window.addEventListener('firebase-ready',()=>{
+  const {auth,onAuthStateChanged,db,doc,getDoc}=window._fb;
+  onAuthStateChanged(auth,async user=>{
+    if(!user){show('screen-login');return;}
+    CU=user;
+    const snap=await getDoc(doc(db,'users',user.uid));
+    if(!snap.exists()){doLogout();return;}
+    CP=snap.data();
+    if(CP.type==='master')     loadMaster();
+    else if(CP.type==='admin') loadAdmin();
+    else                       loadUser();
+  });
+  show('screen-login');
+});
+
+// ════════════════════════════════════════════════════════════════
+//  MASTER — convoca todos, vê tudo
+// ════════════════════════════════════════════════════════════════
+function loadMaster(){
+  const {db,collection,onSnapshot,query,orderBy}=window._fb;
+  show('screen-master');
+  $('m-av').textContent=ini(CP.name); $('m-sub').textContent=CP.name;
+  onSnapshot(collection(db,'users'),snap=>{
+    allUsers=snap.docs.map(d=>({id:d.id,...d.data()})).filter(u=>u.id!==CU.uid);
+    renderMasterPeople();
+  });
+  onSnapshot(query(collection(db,'calls'),orderBy('createdAt','desc')),snap=>{
+    renderHist('m-hist',snap.docs.map(d=>({id:d.id,...d.data()})).slice(0,12),'master');
+  });
+}
+function renderMasterPeople(){
+  const admins=allUsers.filter(u=>u.type==='admin');
+  const users =allUsers.filter(u=>u.type==='user');
+  const all=allUsers.filter(u=>u.type!=='master');
+  $('s-online').textContent=all.filter(u=>u.status==='online').length;
+  $('s-busy').textContent  =all.filter(u=>u.status==='busy').length;
+  $('s-total').textContent =all.length;
+  // Admins
+  if(admins.length){ $('sec-admins').style.display=''; $('grid-admins').style.display='grid'; $('grid-admins').innerHTML=admins.map(pCard).join(''); }
+  else { $('sec-admins').style.display='none'; $('grid-admins').style.display='none'; }
+  // Users
+  $('grid-users').innerHTML=users.length
+    ? users.map(pCard).join('')
+    : '<div class="empty" style="grid-column:span 2"><div class="ei">👥</div><p>Nenhum funcionário ainda.</p></div>';
+}
+function pCard(u){
+  const dot=u.status==='online'?'online':u.status==='busy'?'busy':'';
+  const tag=u.type==='admin'?`<span class="p-tag pt-admin">Admin</span>`:`<span class="p-tag pt-user">User</span>`;
+  return `<div class="p-card" onclick="openModal('${u.id}')">
+    <div class="p-av">${ini(u.name)}<div class="p-dot ${dot}"></div></div>
+    <div class="p-name">${u.name}</div><div class="p-role">${u.role}</div>${tag}
+    <button class="call-btn" onclick="event.stopPropagation();openModal('${u.id}')">🔔 Convocar</button>
+  </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  ADMIN — gerencia usuários, NÃO convoca, também recebe chamadas
+// ════════════════════════════════════════════════════════════════
+function loadAdmin(){
+  const {db,collection,onSnapshot,query,orderBy}=window._fb;
+  show('screen-admin');
+  $('a-av').textContent=ini(CP.name); $('a-sub').textContent=CP.name;
+  onSnapshot(collection(db,'users'),snap=>{
+    const users=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const all=users.filter(u=>u.type!=='master');
+    $('as-on').textContent  =all.filter(u=>u.status==='online').length;
+    $('as-busy').textContent=all.filter(u=>u.status==='busy').length;
+    $('as-total').textContent=all.length;
+    renderAdminUsers(users);
+  });
+  onSnapshot(query(collection(db,'calls'),orderBy('createdAt','desc')),snap=>{
+    renderHist('a-hist',snap.docs.map(d=>({id:d.id,...d.data()})).slice(0,12),'admin');
+  });
+  // Admin também pode ser convocado pelo master
+  listenCalls();
+}
+function renderAdminUsers(users){
+  if(!users.length){$('a-users').innerHTML='<div class="empty"><p>Sem usuários.</p></div>';return;}
+  const ord={master:0,admin:1,user:2};
+  users.sort((a,b)=>ord[a.type]-ord[b.type]);
+  $('a-users').innerHTML=users.map(u=>{
+    const badge=u.type==='master'?`<span class="rb rb-master">👑 Master</span>`:u.type==='admin'?`<span class="rb rb-admin">🛡️ Admin</span>`:`<span class="rb rb-user">👤 User</span>`;
+    const dot=u.status==='online'?'🟢':u.status==='busy'?'🔴':'⚫';
+    // Admin só pode deletar Users (não Master nem outro Admin)
+    const canDel=u.type==='user';
+    return `<div class="u-item">
+      <div class="u-av">${ini(u.name)}</div>
+      <div class="u-info"><div class="u-name">${dot} ${u.name}</div><div class="u-meta">${u.role} · ${u.email}</div></div>
+      <div class="u-right">${badge}${canDel?`<button class="del-btn" onclick="delUser('${u.id}')" title="Remover">🗑</button>`:''}</div>
+    </div>`;
+  }).join('');
+}
+async function delUser(uid){
+  if(!confirm('Remover este funcionário?')) return;
+  await window._fb.deleteDoc(window._fb.doc(window._fb.db,'users',uid));
+  toast('Funcionário removido.');
+}
+
+// ════════════════════════════════════════════════════════════════
+//  USER (FUNCIONÁRIO) — só aguarda convocação
+// ════════════════════════════════════════════════════════════════
+function loadUser(){
+  show('screen-employee');
+  $('e-name').textContent=$('e-dname').textContent=CP.name;
+  $('e-role').textContent=$('e-drole').textContent=CP.role;
+  $('e-av').textContent=ini(CP.name);
+  listenCalls();
+}
+
+// ── Escuta convocações (Admin e User) ──────────────────────────
+function listenCalls(){
+  const {db,collection,onSnapshot,query,orderBy}=window._fb;
+  callUnsub=onSnapshot(query(collection(db,'calls'),orderBy('createdAt','desc')),snap=>{
+    const calls=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const mine=calls.filter(c=>(c.to===CU.uid||c.to==='all')&&!c.accepted&&!c.declined&&isRecent(c.createdAt));
+    if(mine.length) triggerCall(mine[0]);
+    else $('overlay-call').classList.remove('show');
+    if(CP.type==='user') renderHist('e-hist',calls.filter(c=>c.to===CU.uid).slice(0,8),'user');
+  });
+}
+let _lid=null;
+function triggerCall(call){
+  if(_lid===call.id) return; _lid=call.id;
+  $('oc-from').textContent=call.fromName||'Master';
+  $('oc-msg').textContent =call.message;
+  $('overlay-call').classList.add('show');
+  window._acid=call.id;
+  if(navigator.vibrate) navigator.vibrate([350,80,350,80,350]);
+  playBell();
+}
+async function acceptCall(){
+  if(window._acid) await window._fb.updateDoc(window._fb.doc(window._fb.db,'calls',window._acid),{accepted:true});
+  $('overlay-call').classList.remove('show'); toast('✅ Confirmado! A caminho.');
+}
+async function declineCall(){
+  if(window._acid) await window._fb.updateDoc(window._fb.doc(window._fb.db,'calls',window._acid),{declined:true});
+  $('overlay-call').classList.remove('show'); toast('❌ Convocação recusada.');
+}
+async function setStatus(status){
+  await window._fb.updateDoc(window._fb.doc(window._fb.db,'users',CU.uid),{status});
+  $('chip-on').className  ='s-chip'+(status==='online'?' on':'');
+  $('chip-busy').className='s-chip'+(status==='busy'  ?' busy':'');
+  $('ring-icon').textContent=status==='online'?'🟢':'🔴';
+  $('ring-lbl').textContent =status==='online'?'Online':'Ocupado';
+  toast(status==='online'?'✅ Disponível':'🔴 Ocupado');
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MODAL CONVOCAR — apenas Master
+// ════════════════════════════════════════════════════════════════
+function openModal(tid){
+  if(CP?.type!=='master') return;
+  callTarget=tid;
+  $('modal-title').textContent=tid==='all'?'📣 Convocar Todos':`Convocar ${allUsers.find(u=>u.id===tid)?.name||''}`;
+  $('modal-call').classList.add('show');
+}
+function closeModal(){ $('modal-call').classList.remove('show'); callTarget=null; }
+async function sendCall(){
+  const {db,collection,addDoc,serverTimestamp}=window._fb;
+  let msg=$('call-msg').value;
+  if(msg==='custom') msg=$('custom-txt').value.trim()||'Mensagem personalizada';
+  const targets=callTarget==='all'?allUsers.filter(u=>u.type!=='master').map(u=>u.id):[callTarget];
+  const tName  =callTarget==='all'?'Todos':(allUsers.find(u=>u.id===callTarget)?.name||'—');
+  for(const tid of targets){
+    await addDoc(collection(db,'calls'),{from:CU.uid,fromName:CP.name,to:tid,targetName:tName,message:msg,accepted:false,declined:false,createdAt:serverTimestamp()});
+  }
+  closeModal(); toast(`🔔 Convocado: ${tName}!`);
+}
+
+// ── Histórico genérico ─────────────────────────────────────────
+function renderHist(elId,calls,role){
+  const el=$(elId), pre=elId==='e-hist'?'<div class="sec" style="padding:0;margin-bottom:8px">Meu histórico</div>':'';
+  if(!calls.length){el.innerHTML=pre+'<div class="empty"><p>Nenhuma convocação ainda.</p></div>';return;}
+  el.innerHTML=pre+calls.map(c=>{
+    const sc=c.accepted?'st-ok':c.declined?'st-no':'st-wait', sl=c.accepted?'✅ Aceito':c.declined?'❌ Recusado':'⏳ Pendente';
+    const who=(role==='master'||role==='admin')?c.targetName||'—':c.fromName||'—', dir=(role==='master'||role==='admin')?'→':'←';
+    return `<div class="hist-item"><div class="hist-ico">🔔</div><div class="hist-info"><div class="hist-text">${dir} ${who}</div><div class="hist-meta">${c.message} · ${ago(c.createdAt)}</div></div><div class="hist-st ${sc}">${sl}</div></div>`;
+  }).join('');
+}
+
+// ── Bell ───────────────────────────────────────────────────────
+function playBell(){
+  try {
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [[880,440,.65,.6],[1047,523,.5,.5]].forEach(([f1,f2,vol,dur],i)=>{
+      setTimeout(()=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.connect(g); g.connect(ctx.destination); o.type='sine';
+        o.frequency.setValueAtTime(f1,ctx.currentTime); o.frequency.exponentialRampToValueAtTime(f2,ctx.currentTime+dur);
+        g.gain.setValueAtTime(vol,ctx.currentTime); g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+dur+.05);
+        o.start(); o.stop(ctx.currentTime+dur+.1);
+      },i*420);
+    });
+  }catch(e){}
+}
+document.addEventListener('touchstart',()=>{ try{new(window.AudioContext||window.webkitAudioContext)().resume();}catch(e){} },{once:true});
+</script>
+</body>
+</html>
